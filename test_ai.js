@@ -38,7 +38,7 @@ function submit(doc, formId, values){
   ok(!crashed,'corrupted config does not crash app');
   dom.window.localStorage.setItem('eff_cfg', JSON.stringify({url:'not a url'}));
   try{ dom.window.eval('updateSyncStatus()'); crashed=false; }catch(e){ crashed=true; }
-  ok(!crashed && doc.getElementById('syncStatus').textContent.includes('invalid URL'),'malformed Supabase URL handled');
+  ok(!crashed && doc.getElementById('syncStatus').textContent.includes('Local only'),'malformed Supabase URL handled');
   // AI tool input validation + attribute-injection defense
   let out = dom.window.eval(`runTool('add_task',{title:'Injected', priority:'x" onmouseover="alert(1)', category:'"><script>x</script>'})`);
   ok(out.includes('Task added'),'add_task accepts but sanitizes bad enums');
@@ -127,6 +127,57 @@ function submit(doc, formId, values){
   click(doc.querySelector('nav button[data-tab="dashboard"]'));
   click(doc.querySelector('.card[data-goto="sales"]'));
   ok(doc.querySelector('.tab.active').id==='tab-sales','Sales card -> Sales');
+
+  console.log('== 8. Accounts (Supabase Auth) ==');
+  // sync blocked when logged out
+  dom.window.fetch = async()=>{ throw new Error('no network calls expected'); };
+  await dom.window.eval('syncNow()');
+  ok(doc.getElementById('toast').textContent.includes('Sign in first'),'sync blocked until signed in');
+
+  // signup -> session saved, sync uses Bearer token
+  const reqs = [];
+  dom.window.fetch = async(url,opts)=>{
+    reqs.push({url:String(url), headers:(opts&&opts.headers)||{}, body:(opts&&opts.body)||null});
+    if(String(url).includes('/auth/v1/signup'))
+      return {ok:true,status:200,json:async()=>({access_token:'AT1',refresh_token:'RT1',expires_in:3600,user:{id:'u1',email:'basil@test.com'}})};
+    if(String(url).includes('/rest/v1/'))
+      return {ok:true,status:opts.method==='GET'?200:204,json:async()=>[],text:async()=>''};
+    return {ok:true,status:200,json:async()=>({})};
+  };
+  doc.getElementById('authEmail').value='basil@test.com';
+  doc.getElementById('authPass').value='secret123';
+  doc.getElementById('btnSignup').dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true}));
+  await sleep(300);
+  ok(reqs.some(r=>r.url.includes('/auth/v1/signup')&&r.body.includes('basil@test.com')),'signup request sent');
+  ok(JSON.parse(dom.window.localStorage.getItem('eff_session')).access_token==='AT1','session stored');
+  ok(doc.getElementById('authStatus').textContent.includes('basil@test.com'),'UI shows signed-in email');
+  ok(doc.getElementById('syncStatus').textContent.includes('basil@test.com'),'header shows cloud account');
+  const rest = reqs.find(r=>r.url.includes('/rest/v1/'));
+  ok(rest && rest.headers['Authorization']==='Bearer AT1','sync authenticates with user token (not anon key)');
+
+  // expired token -> refresh flow
+  const sess = JSON.parse(dom.window.localStorage.getItem('eff_session'));
+  sess.expires_at = Date.now()-1000;
+  dom.window.localStorage.setItem('eff_session', JSON.stringify(sess));
+  reqs.length = 0;
+  dom.window.fetch = async(url,opts)=>{
+    reqs.push({url:String(url), headers:(opts&&opts.headers)||{}});
+    if(String(url).includes('grant_type=refresh_token'))
+      return {ok:true,status:200,json:async()=>({access_token:'AT2',refresh_token:'RT2',expires_in:3600,user:{id:'u1',email:'basil@test.com'}})};
+    if(String(url).includes('/rest/v1/'))
+      return {ok:true,status:opts.method==='GET'?200:204,json:async()=>[],text:async()=>''};
+    return {ok:true,status:200,json:async()=>({})};
+  };
+  await dom.window.eval('syncNow()');
+  ok(reqs.some(r=>r.url.includes('grant_type=refresh_token')),'expired session triggers refresh');
+  const rest2 = reqs.filter(r=>r.url.includes('/rest/v1/'));
+  ok(rest2.length && rest2.every(r=>r.headers['Authorization']==='Bearer AT2'),'refreshed token used for sync');
+
+  // logout clears session
+  doc.getElementById('btnLogout').dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true}));
+  await sleep(150);
+  ok(!dom.window.localStorage.getItem('eff_session'),'logout clears session');
+  ok(doc.getElementById('authStatus').textContent.includes('Not signed in'),'UI back to logged out');
 
   console.log(`\n===== RESULT: ${pass} passed, ${fail} failed =====`);
   process.exit(fail?1:0);

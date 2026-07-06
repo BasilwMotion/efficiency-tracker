@@ -214,7 +214,27 @@
 <!-- SETTINGS -->
 <div class="tab" id="tab-settings">
   <div class="section">
-    <h2>Supabase Sync</h2>
+    <h2>Account</h2>
+    <div class="settings-grid">
+      <div id="authStatus" style="font-size:13px;color:var(--muted)"></div>
+      <div id="authForms" style="display:grid;gap:10px">
+        <label>Email</label>
+        <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="username">
+        <label>Password (6+ characters)</label>
+        <input type="password" id="authPass" placeholder="••••••••" autocomplete="current-password">
+        <div class="row">
+          <button class="btn" id="btnLogin">Log in</button>
+          <button class="btn secondary" id="btnSignup">Sign up</button>
+        </div>
+      </div>
+      <div class="row" id="authLoggedIn" style="display:none">
+        <button class="btn secondary" id="btnLogout">Log out</button>
+      </div>
+      <div style="font-size:12px;color:var(--muted)">An account saves your data to the cloud and syncs it across your devices. Passwords are handled by Supabase Auth (never stored in the app). Without an account, data stays on this device only.</div>
+    </div>
+  </div>
+  <div class="section">
+    <h2>Supabase Sync (advanced)</h2>
     <div class="settings-grid">
       <label>Project URL (https://xxxx.supabase.co)</label>
       <input type="text" id="sbUrl" placeholder="https://yourproject.supabase.co">
@@ -225,7 +245,7 @@
         <button class="btn secondary" id="sbSync">Sync now</button>
         <label class="row" style="gap:6px"><input type="checkbox" id="sbAuto"> Auto-sync on changes</label>
       </div>
-      <div class="sub" id="sbInfo" style="font-size:12px;color:var(--muted)">Run supabase-setup.sql in your Supabase SQL editor first. Data always saves locally; sync merges with the cloud (last edit wins).</div>
+      <div class="sub" id="sbInfo" style="font-size:12px;color:var(--muted)">Pre-configured — you normally dont need to change this. Only set these if you host your own Supabase project (run supabase-setup.sql there first). Data always saves locally; sync merges with the cloud (last edit wins).</div>
     </div>
   </div>
   <div class="section">
@@ -504,19 +524,82 @@ document.body.addEventListener('click',e=>{
 /* ============ SUPABASE SYNC ============ */
 const cfg = () => { try{ return JSON.parse(localStorage.getItem('eff_cfg')||'{}') || {}; }catch(e){ return {}; } };
 function saveCfg(c){ localStorage.setItem('eff_cfg',JSON.stringify(c)); updateSyncStatus(); }
+const DEFAULT_SB = {
+  url:'https://sfceywkweduamiviiyyy.supabase.co',
+  key:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmY2V5d2t3ZWR1YW1pdmlpeXl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyOTYwNjgsImV4cCI6MjA5ODg3MjA2OH0.LKO6JQwgPOKVmlOCSuKdZPcLxNk-WEmWx0lGWyld_NY'
+};
+const sbConf = () => { const c = cfg(); return { url:((c.url||'').trim()||DEFAULT_SB.url).replace(/\/$/,''), key:(c.key||'').trim()||DEFAULT_SB.key }; };
+const session = () => { try{ return JSON.parse(localStorage.getItem('eff_session')); }catch(e){ return null; } };
+function saveSession(s){ localStorage.setItem('eff_session', JSON.stringify(s)); updateAuthUI(); updateSyncStatus(); }
+function clearSession(){ localStorage.removeItem('eff_session'); updateAuthUI(); updateSyncStatus(); }
+async function authCall(path, body){
+  const sc = sbConf();
+  const res = await fetch(sc.url+'/auth/v1/'+path, { method:'POST',
+    headers:{ apikey:sc.key, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(j.msg || j.error_description || j.message || ('Auth error '+res.status));
+  return j;
+}
+const sessionFromAuth = j => ({ access_token:j.access_token, refresh_token:j.refresh_token,
+  expires_at: Date.now() + (((j.expires_in||3600)-60)*1000),
+  user:{ id:j.user&&j.user.id, email:j.user&&j.user.email } });
+async function ensureFreshSession(){
+  const s = session();
+  if(!s) return null;
+  if(Date.now() < (s.expires_at||0)) return s;
+  try{
+    const j = await authCall('token?grant_type=refresh_token', { refresh_token:s.refresh_token });
+    const ns = sessionFromAuth(j); saveSession(ns); return ns;
+  }catch(e){ clearSession(); return null; }
+}
+async function doSignup(){
+  const email=$('#authEmail').value.trim(), password=$('#authPass').value;
+  if(!email || password.length<6) return toast('Enter an email and a password of 6+ characters', false);
+  try{
+    const j = await authCall('signup', { email, password });
+    if(j.access_token){ saveSession(sessionFromAuth(j)); $('#authPass').value=''; toast('Account created ✓'); syncNow(); }
+    else toast('Check your email to confirm your account, then log in.');
+  }catch(err){ toast(err.message, false); }
+}
+async function doLogin(){
+  const email=$('#authEmail').value.trim(), password=$('#authPass').value;
+  if(!email || !password) return toast('Enter email and password', false);
+  try{
+    const j = await authCall('token?grant_type=password', { email, password });
+    saveSession(sessionFromAuth(j)); $('#authPass').value=''; toast('Logged in ✓'); syncNow();
+  }catch(err){ toast(err.message, false); }
+}
+async function doLogout(){
+  const s = session();
+  if(s){ try{ await fetch(sbConf().url+'/auth/v1/logout', { method:'POST',
+    headers:{ apikey:sbConf().key, Authorization:'Bearer '+s.access_token } }); }catch(e){} }
+  clearSession(); toast('Logged out');
+}
+function updateAuthUI(){
+  const s = session();
+  $('#authForms').style.display = s? 'none':'grid';
+  $('#authLoggedIn').style.display = s? 'flex':'none';
+  $('#authStatus').textContent = s? ('Signed in as '+((s.user&&s.user.email)||'')) : 'Not signed in';
+}
+$('#btnSignup').addEventListener('click', doSignup);
+$('#btnLogin').addEventListener('click', doLogin);
+$('#btnLogout').addEventListener('click', doLogout);
+
 function updateSyncStatus(){
-  const c=cfg();
-  let host = ''; try{ host = c.url ? new URL(c.url).hostname : ''; }catch(e){ host = 'invalid URL'; }
-  $('#syncStatus').textContent = c.url ? ('Supabase: '+host + (c.lastSync? ' · synced '+new Date(c.lastSync).toLocaleTimeString():'')) : 'Local only';
+  const c=cfg(); const s=session();
+  $('#syncStatus').textContent = s ? ('Cloud: '+((s.user&&s.user.email)||'') + (c.lastSync? ' · synced '+new Date(c.lastSync).toLocaleTimeString():''))
+    : 'Local only — sign in to sync';
 }
 async function sbFetch(path, opts={}){
-  const c=cfg();
-  if(!c.url||!c.key) throw new Error('Supabase not configured (Settings tab)');
-  const res = await fetch(c.url.replace(/\/$/,'')+'/rest/v1/'+path, {
+  const sc = sbConf();
+  const s = await ensureFreshSession();
+  if(!s) throw new Error('Sign in first (Settings → Account) to sync your data');
+  const res = await fetch(sc.url+'/rest/v1/'+path, {
     ...opts,
-    headers:{ apikey:c.key, Authorization:'Bearer '+c.key, 'Content-Type':'application/json',
+    headers:{ apikey:sc.key, Authorization:'Bearer '+s.access_token, 'Content-Type':'application/json',
       Prefer:'resolution=merge-duplicates,return=minimal', ...(opts.headers||{}) }
   });
+  if(res.status===401){ clearSession(); throw new Error('Session expired — please log in again'); }
   if(!res.ok) throw new Error('Supabase '+res.status+': '+(await res.text()).slice(0,200));
   return res.status===204? null : res.json();
 }
@@ -756,7 +839,9 @@ $('#aiModel').value=c0.aiModel||PROVIDERS[$('#aiProvider').value].model;
 $('#aiBase').value=c0.aiBase||'';
 updateSyncStatus();
 updateAiStatus();
+updateAuthUI();
 renderAll();
+if(session()) setTimeout(()=>{ syncNow(); }, 600);
 chatBubble('ai', "Hi! I'm your efficiency assistant. Ask me things like:\n• \"What should I focus on today?\"\n• \"Add task: send invoices, high priority, due Friday\"\n• \"Mark the demo prep as done\"\n• \"How's my sales efficiency this week?\"");
 </script>
 </body>
