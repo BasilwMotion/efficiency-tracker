@@ -18,3 +18,6 @@ create index if not exists idx_tasks_user on tasks(user_id);
 create index if not exists idx_sales_user on sales(user_id);
 create index if not exists idx_meetings_user on meetings(user_id);
 create index if not exists idx_deadlines_user on deadlines(user_id);
+
+-- Sales deal-stage checklist
+alter table sales add column if not exists stages jsonb default '{}'::jsonb;

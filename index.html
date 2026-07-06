@@ -78,6 +78,13 @@
   .card[data-goto]:active{transform:scale(.98)}
   .card:hover{border-color:var(--accent)}
   .tab.active{animation:fadeIn .15s ease}
+  ul.items li.sale-row{flex-direction:column;align-items:stretch;cursor:pointer}
+  .sale-main{display:flex;align-items:center;gap:10px}
+  .chev{color:var(--muted);font-size:11px;width:14px;flex-shrink:0}
+  .stagelist{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;padding:12px 4px 4px 24px;cursor:default;animation:fadeIn .15s ease}
+  .stagelist label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
+  .stagelist label:has(input:checked){border-color:var(--green);color:var(--green)}
+  .stagelist input{width:16px;height:16px;accent-color:var(--green);flex-shrink:0}
   @media(max-width:640px){
     main{padding:12px}
     header{padding:12px 14px}
@@ -411,6 +418,15 @@ function renderTasks(){
 }
 
 const SALES_LABELS = {call:'Call',follow_up:'Follow-up',proposal:'Proposal',meeting:'Sales meeting',closed:'✅ Closed',lost:'❌ Lost'};
+const SALES_STAGES = [
+  {k:'call', label:'Call'},
+  {k:'follow_up', label:'Follow-up'},
+  {k:'proposal', label:'Proposal'},
+  {k:'meeting', label:'Sales meeting'},
+  {k:'closed', label:'Deal closed'},
+  {k:'lost', label:'Deal lost'},
+];
+let expandedSaleId = null;
 const CHECKLIST_ITEMS = [
   {k:'calls', label:'Made outreach calls'},
   {k:'followups', label:'Sent follow-ups'},
@@ -424,12 +440,22 @@ function renderSales(){
     `<label><input type="checkbox" data-check="${c.k}" ${checks[c.k]?'checked':''}> ${c.label}</label>`).join('');
 
   const list = live('sales').sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,30);
-  $('#salesList').innerHTML = list.length? list.map(s=>
-    `<li><span class="item-title">${SALES_LABELS[s.type]||esc(s.type)}${s.client?' — '+esc(s.client):''}</span>
-     ${s.amount? `<span class="tag sales">$${Number(s.amount).toLocaleString()}</span>`:''}
-     <span class="meta">${fmtDT(s.created_at)}</span>
-     <button class="btn danger" data-del="sales" data-id="${s.id}">×</button></li>`).join('')
-    : '<li class="empty">No activity logged.</li>';
+  $('#salesList').innerHTML = list.length? list.map(s=>{
+    const st = s.stages || {};
+    const open = expandedSaleId === s.id;
+    const checks = SALES_STAGES.map(g=>
+      `<label><input type="checkbox" data-stage="${g.k}" data-sid="${s.id}" ${(st[g.k]!==undefined? st[g.k] : s.type===g.k)? 'checked':''}> ${g.label}</label>`).join('');
+    return `<li class="sale-row${open?' open':''}" data-expand="${s.id}" title="Click to track deal stages">
+      <div class="sale-main">
+        <span class="chev">${open?'▼':'▶'}</span>
+        <span class="item-title">${SALES_LABELS[s.type]||esc(s.type)}${s.client?' — '+esc(s.client):''}</span>
+        ${s.amount? `<span class="tag sales">$${Number(s.amount).toLocaleString()}</span>`:''}
+        <span class="meta">${fmtDT(s.created_at)}</span>
+        <button class="btn danger" data-del="sales" data-id="${s.id}">×</button>
+      </div>
+      ${open? `<div class="stagelist">${checks}</div>`:''}
+    </li>`;
+  }).join('') : '<li class="empty">No activity logged.</li>';
 }
 
 function renderMeetings(){
@@ -486,7 +512,8 @@ $('#taskForm').addEventListener('submit',e=>{
 $('#salesForm').addEventListener('submit',e=>{
   e.preventDefault();
   addRec('sales',{ type:$('#salesType').value, client:$('#salesClient').value.trim()||null,
-    amount:$('#salesAmount').value? parseFloat($('#salesAmount').value):null });
+    amount:$('#salesAmount').value? parseFloat($('#salesAmount').value):null,
+    stages:{ [$('#salesType').value]: true } });
   e.target.reset();
 });
 $('#meetForm').addEventListener('submit',e=>{
@@ -509,6 +536,16 @@ document.body.addEventListener('change',e=>{
     if(table==='tasks') patch.completed_at = done? now() : null;
     updateRec(table,id,patch);
   }
+  if(el.dataset.stage && el.dataset.sid){
+    const r = store.sales.find(x=>x.id===el.dataset.sid);
+    if(r){
+      const st = { ...(r.stages||{}) };
+      if(!r.stages) st[r.type] = true; // keep the implicit check for the row's own type
+      st[el.dataset.stage] = el.checked;
+      updateRec('sales', el.dataset.sid, { stages: st });
+    }
+    return;
+  }
   if(el.dataset.check){
     const today=new Date().toISOString().slice(0,10);
     const checks=JSON.parse(localStorage.getItem('eff_checklist_'+today)||'{}');
@@ -518,7 +555,19 @@ document.body.addEventListener('change',e=>{
 });
 document.body.addEventListener('click',e=>{
   const el=e.target;
-  if(el.dataset.del && el.dataset.id && confirm('Delete this item?')) delRec(el.dataset.del, el.dataset.id);
+  if(el.dataset.del && el.dataset.id){
+    if(confirm('Delete this item?')){
+      if(expandedSaleId===el.dataset.id) expandedSaleId=null;
+      delRec(el.dataset.del, el.dataset.id);
+    }
+    return;
+  }
+  if(el.closest('.stagelist')) return;
+  const row = el.closest('[data-expand]');
+  if(row){
+    expandedSaleId = (expandedSaleId===row.dataset.expand)? null : row.dataset.expand;
+    renderSales();
+  }
 });
 
 /* ============ SUPABASE SYNC ============ */
@@ -716,7 +765,7 @@ function runTool(name, inp){
     case 'log_sale': {
       if(!['call','follow_up','proposal','meeting','closed','lost'].includes(inp.type)) return 'ERROR: invalid sale type';
       const amt = (inp.amount===undefined||inp.amount===null)? null : Number(inp.amount);
-      addRec('sales',{ type:inp.type, client:inp.client? String(inp.client).slice(0,200):null, amount:(amt===null||isNaN(amt))? null: amt });
+      addRec('sales',{ type:inp.type, client:inp.client? String(inp.client).slice(0,200):null, amount:(amt===null||isNaN(amt))? null: amt, stages:{ [inp.type]: true } });
       return 'Logged '+inp.type+(inp.client?' — '+inp.client:'')+(inp.amount?' $'+inp.amount:'');
     }
     case 'add_meeting': {

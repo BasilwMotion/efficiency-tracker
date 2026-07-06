@@ -20,6 +20,7 @@ create table if not exists sales (
   type text not null,
   client text,
   amount numeric,
+  stages jsonb default '{}'::jsonb,
   deleted boolean default false,
   user_id uuid default auth.uid(),
   created_at timestamptz default now(),

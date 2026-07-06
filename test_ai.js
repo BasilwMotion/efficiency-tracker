@@ -128,7 +128,30 @@ function submit(doc, formId, values){
   click(doc.querySelector('.card[data-goto="sales"]'));
   ok(doc.querySelector('.tab.active').id==='tab-sales','Sales card -> Sales');
 
-  console.log('== 8. Accounts (Supabase Auth) ==');
+  console.log('== 8. Sales stage checklist ==');
+  const clickEl=el=>el.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true}));
+  click(doc.querySelector('nav button[data-tab="sales"]'));
+  const row = doc.querySelector('#salesList li.sale-row');
+  ok(!!row,'sales log rows are expandable');
+  ok(!doc.querySelector('.stagelist'),'checklist hidden before click');
+  clickEl(row.querySelector('.item-title'));
+  let stagelist = doc.querySelector('#salesList .stagelist');
+  ok(!!stagelist,'clicking a log expands its checklist');
+  ok(stagelist.querySelectorAll('input[data-stage]').length===6,'6 stage checkboxes (call, follow-up, proposal, meeting, closed, lost)');
+  const rowId = doc.querySelector('#salesList li.sale-row').dataset.expand;
+  const rec0 = JSON.parse(dom.window.localStorage.getItem('eff_sales')).find(x=>x.id===rowId);
+  const ownBox = doc.querySelector(`.stagelist input[data-stage="${rec0.type}"][data-sid="${rowId}"]`);
+  ok(ownBox && ownBox.checked,'row\'s own activity type is pre-checked');
+  const propBox = doc.querySelector(`.stagelist input[data-stage="proposal"][data-sid="${rowId}"]`);
+  propBox.checked = true;
+  propBox.dispatchEvent(new (dom.window.Event)('change',{bubbles:true}));
+  const rec = JSON.parse(dom.window.localStorage.getItem('eff_sales')).find(x=>x.id===rowId);
+  ok(rec.stages && rec.stages.proposal===true && rec.stages[rec0.type]===true,'stage toggle persists to storage (and keeps implicit check)');
+  ok(doc.querySelector(`#salesList .stagelist input[data-stage="proposal"]`).checked,'checkbox stays checked after re-render');
+  clickEl(doc.querySelector('#salesList li.sale-row .item-title'));
+  ok(!doc.querySelector('#salesList .stagelist'),'clicking again collapses the checklist');
+
+  console.log('== 9. Accounts (Supabase Auth) ==');
   // sync blocked when logged out
   dom.window.fetch = async()=>{ throw new Error('no network calls expected'); };
   await dom.window.eval('syncNow()');
