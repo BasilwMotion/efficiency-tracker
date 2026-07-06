@@ -151,7 +151,27 @@ function submit(doc, formId, values){
   clickEl(doc.querySelector('#salesList li.sale-row .item-title'));
   ok(!doc.querySelector('#salesList .stagelist'),'clicking again collapses the checklist');
 
-  console.log('== 9. Accounts (Supabase Auth) ==');
+  console.log('== 9. Sales outcomes pie + status badges ==');
+  // current data: 1 closed (Acme), 1 lost (Beta) -> 50/50, plus proposal stage was ticked on one earlier
+  const badges=[...doc.querySelectorAll('#salesList .sale-main .tag[class*="st-"]')];
+  ok(badges.length>=2,'every log row shows a status badge');
+  const stats=()=>doc.getElementById('salesPieStats').textContent;
+  ok(stats().includes('Closed 50% (1)')&&stats().includes('Lost 50% (1)')&&stats().includes('Pending 0% (0)'),'percentages shown beneath pie (50/50/0)');
+  ok((doc.getElementById('salesPie').style.background||'').includes('conic-gradient'),'pie chart rendered');
+  // add a pending activity -> 3-way split
+  submit(doc,'salesForm',{salesType:'call',salesClient:'Gamma'});
+  ok(stats().includes('Closed 33%')&&stats().includes('Lost 33%')&&stats().includes('Pending 33%'),'pie updates live when a pending deal is logged');
+  ok(doc.querySelector('#salesList .sale-main .tag.st-pending'),'pending badge appears on new call log');
+  // ticking "Deal closed" on the pending call flips status + pie
+  dom.window.eval(`expandedSaleId=null;`);
+  const pRow=[...doc.querySelectorAll('#salesList li.sale-row')].find(li=>li.querySelector('.tag.st-pending'));
+  const pId=pRow.dataset.expand;
+  clickEl(pRow.querySelector('.item-title'));
+  const cBox=doc.querySelector(`.stagelist input[data-stage="closed"][data-sid="${pId}"]`);
+  cBox.checked=true; cBox.dispatchEvent(new (dom.window.Event)('change',{bubbles:true}));
+  ok(stats().includes('Closed 67%')&&stats().includes('Pending 0%'),'checking Deal closed moves deal from pending to closed in pie');
+
+  console.log('== 10. Accounts (Supabase Auth) ==');
   // sync blocked when logged out
   dom.window.fetch = async()=>{ throw new Error('no network calls expected'); };
   await dom.window.eval('syncNow()');

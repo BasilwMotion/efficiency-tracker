@@ -85,6 +85,14 @@
   .stagelist label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
   .stagelist label:has(input:checked){border-color:var(--green);color:var(--green)}
   .stagelist input{width:16px;height:16px;accent-color:var(--green);flex-shrink:0}
+  .tag.st-closed{color:var(--green);border-color:var(--green)}
+  .tag.st-lost{color:var(--red);border-color:var(--red)}
+  .tag.st-pending{color:var(--amber);border-color:var(--amber)}
+  .pie-wrap{display:flex;flex-direction:column;align-items:center;gap:14px;margin-bottom:16px}
+  .pie{width:170px;height:170px;border-radius:50%;border:1px solid var(--border);background:var(--panel2)}
+  .pie-stats{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;font-size:13px}
+  .pie-stats span{display:flex;align-items:center;gap:6px}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
   @media(max-width:640px){
     main{padding:12px}
     header{padding:12px 14px}
@@ -172,6 +180,11 @@
     </form>
     <h2>Daily Sales Checklist</h2>
     <div class="checklist" id="salesChecklist"></div>
+    <h2>Sales Outcomes</h2>
+    <div class="pie-wrap">
+      <div id="salesPie" class="pie" role="img" aria-label="Sales outcomes pie chart"></div>
+      <div id="salesPieStats" class="pie-stats"></div>
+    </div>
     <h2>Activity Log</h2>
     <ul class="items" id="salesList"></ul>
   </div>
@@ -427,6 +440,13 @@ const SALES_STAGES = [
   {k:'lost', label:'Deal lost'},
 ];
 let expandedSaleId = null;
+function saleStatus(s){
+  const st = s.stages || {};
+  if(st.closed !== undefined ? st.closed : s.type==='closed') return 'closed';
+  if(st.lost !== undefined ? st.lost : s.type==='lost') return 'lost';
+  return 'pending';
+}
+const STATUS_LABELS = { pending:'Pending', closed:'Closed', lost:'Lost' };
 const CHECKLIST_ITEMS = [
   {k:'calls', label:'Made outreach calls'},
   {k:'followups', label:'Sent follow-ups'},
@@ -449,6 +469,7 @@ function renderSales(){
       <div class="sale-main">
         <span class="chev">${open?'▼':'▶'}</span>
         <span class="item-title">${SALES_LABELS[s.type]||esc(s.type)}${s.client?' — '+esc(s.client):''}</span>
+        <span class="tag st-${saleStatus(s)}">${STATUS_LABELS[saleStatus(s)]}</span>
         ${s.amount? `<span class="tag sales">$${Number(s.amount).toLocaleString()}</span>`:''}
         <span class="meta">${fmtDT(s.created_at)}</span>
         <button class="btn danger" data-del="sales" data-id="${s.id}">×</button>
@@ -456,6 +477,21 @@ function renderSales(){
       ${open? `<div class="stagelist">${checks}</div>`:''}
     </li>`;
   }).join('') : '<li class="empty">No activity logged.</li>';
+
+  // outcomes pie: closed vs lost vs pending
+  const counts = { closed:0, lost:0, pending:0 };
+  live('sales').forEach(s=>counts[saleStatus(s)]++);
+  const total = counts.closed + counts.lost + counts.pending;
+  const pc = k => total ? Math.round(counts[k]/total*100) : 0;
+  const a = pc('closed'), b = pc('lost');
+  $('#salesPie').style.background = total
+    ? `conic-gradient(var(--green) 0 ${a}%, var(--red) ${a}% ${Math.min(a+b,100)}%, var(--amber) ${Math.min(a+b,100)}% 100%)`
+    : 'var(--panel2)';
+  $('#salesPieStats').innerHTML = total
+    ? `<span><i class="dot" style="background:var(--green)"></i>Closed ${pc('closed')}% (${counts.closed})</span>
+       <span><i class="dot" style="background:var(--red)"></i>Lost ${pc('lost')}% (${counts.lost})</span>
+       <span><i class="dot" style="background:var(--amber)"></i>Pending ${pc('pending')}% (${counts.pending})</span>`
+    : '<span class="empty">Log sales activity to see outcomes.</span>';
 }
 
 function renderMeetings(){
