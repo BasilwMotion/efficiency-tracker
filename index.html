@@ -315,7 +315,7 @@ function load(){
 function persist(table){
   localStorage.setItem('eff_'+table, JSON.stringify(store[table]));
   renderAll();
-  if(cfg().auto) debounceSync();
+  if(cfg().auto || (typeof session==='function' && session())) debounceSync();
 }
 function addRec(table, data){
   store[table].push({ id: uid(), created_at: now(), updated_at: now(), deleted: false, ...data });
@@ -692,8 +692,29 @@ async function syncNow(){
   try{
     $('#syncStatus').textContent='Syncing…';
     for(const t of TABLES){
-      // push local
-      if(store[t].length) await sbFetch(t, { method:'POST', body: JSON.stringify(store[t]) });
+      // push local: try one batch, fall back to per-row so one bad record can't block the rest
+      if(store[t].length){
+        try{
+          await sbFetch(t, { method:'POST', body: JSON.stringify(store[t]) });
+        }catch(batchErr){
+          let failed = 0;
+          for(const r of store[t]){
+            try{
+              await sbFetch(t, { method:'POST', body: JSON.stringify([r]) });
+            }catch(rowErr){
+              const msg = String(rowErr.message||'');
+              if(msg.includes('409') || msg.includes('403') || msg.includes('42501') || msg.includes('duplicate')){
+                // id owned by another account: keep the data, give it a fresh id
+                r.id = uid(); r.updated_at = now();
+                try{ await sbFetch(t, { method:'POST', body: JSON.stringify([r]) }); }
+                catch(e2){ failed++; }
+              } else failed++;
+            }
+          }
+          localStorage.setItem('eff_'+t, JSON.stringify(store[t]));
+          if(failed) toast(failed+' '+t+' item(s) could not sync', false);
+        }
+      }
       // pull remote, merge last-write-wins
       const remote = await sbFetch(t+'?select=*', { method:'GET', headers:{Prefer:''} });
       const byId = Object.fromEntries(store[t].map(r=>[r.id,r]));
@@ -934,6 +955,7 @@ updateAiStatus();
 updateAuthUI();
 renderAll();
 if(session()) setTimeout(()=>{ syncNow(); }, 600);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && session()) debounceSync(); });
 chatBubble('ai', "Hi! I'm your efficiency assistant. Ask me things like:\n• \"What should I focus on today?\"\n• \"Add task: send invoices, high priority, due Friday\"\n• \"Mark the demo prep as done\"\n• \"How's my sales efficiency this week?\"");
 </script>
 </body>
