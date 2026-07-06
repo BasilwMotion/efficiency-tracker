@@ -766,10 +766,17 @@ async function openaiCall(messages){
   const a = aiConf();
   const headers = { 'content-type':'application/json' };
   if(a.key) headers['Authorization'] = 'Bearer '+a.key;
-  const res = await fetch(a.base+'/chat/completions', { method:'POST', headers,
-    body: JSON.stringify({ model:a.model, max_tokens:1024,
-      messages:[{role:'system', content:aiSystemPrompt()}, ...messages],
-      tools:OPENAI_TOOLS(), tool_choice:'auto' }) });
+  let res;
+  try{
+    res = await fetch(a.base+'/chat/completions', { method:'POST', headers,
+      body: JSON.stringify({ model:a.model, max_tokens:1024,
+        messages:[{role:'system', content:aiSystemPrompt()}, ...messages],
+        tools:OPENAI_TOOLS(), tool_choice:'auto' }) });
+  }catch(e){
+    throw new Error(a.provider==='custom'
+      ? 'Cannot reach '+a.base+'. The custom/Ollama option needs an AI server running on your own computer. Either start Ollama (ollama.com), or switch to Groq/OpenRouter in Settings for a free cloud model.'
+      : 'Cannot reach '+a.base+' — check your internet connection and try again.');
+  }
   if(!res.ok){ const t = await res.text(); throw new Error('API '+res.status+': '+t.slice(0,300)); }
   const j = await res.json();
   if(!j.choices || !j.choices[0] || !j.choices[0].message) throw new Error('Unexpected API response');
