@@ -21,3 +21,15 @@ create index if not exists idx_deadlines_user on deadlines(user_id);
 
 -- Sales deal-stage checklist
 alter table sales add column if not exists stages jsonb default '{}'::jsonb;
+
+-- Per-account app settings (AI provider/key/model), private via RLS
+create table if not exists user_settings (
+  user_id uuid primary key default auth.uid(),
+  ai_provider text,
+  ai_key text,
+  ai_model text,
+  ai_base text,
+  updated_at timestamptz default now()
+);
+alter table user_settings enable row level security;
+create policy "own settings" on user_settings for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());

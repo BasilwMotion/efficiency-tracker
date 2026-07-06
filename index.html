@@ -688,9 +688,44 @@ async function sbFetch(path, opts={}){
   if(!res.ok) throw new Error('Supabase '+res.status+': '+(await res.text()).slice(0,200));
   return res.status===204? null : res.json();
 }
+async function pushSettings(){
+  const s = session();
+  if(!s || !s.user || !s.user.id) return;
+  const c = cfg();
+  try{
+    await sbFetch('user_settings', { method:'POST', body: JSON.stringify([{
+      user_id: s.user.id,
+      ai_provider: c.aiProvider||null, ai_key: c.aiKey||null,
+      ai_model: c.aiModel||null, ai_base: c.aiBase||null,
+      updated_at: c.aiUpdated||now()
+    }]) });
+  }catch(e){ /* settings sync is best-effort */ }
+}
+async function pullSettings(){
+  const s = session();
+  if(!s) return;
+  try{
+    const rows = await sbFetch('user_settings?select=*', { method:'GET', headers:{Prefer:''} });
+    const r = rows && rows[0];
+    const c = cfg();
+    if(r && r.updated_at && (!c.aiUpdated || r.updated_at > c.aiUpdated)){
+      saveCfg({ ...c, aiProvider:r.ai_provider||c.aiProvider, aiKey:r.ai_key||'',
+        aiModel:r.ai_model||c.aiModel, aiBase:r.ai_base||c.aiBase, aiUpdated:r.updated_at });
+      const c2 = cfg();
+      if($('#aiProvider')) $('#aiProvider').value = PROVIDERS[c2.aiProvider]? c2.aiProvider : 'groq';
+      if($('#aiKey')) $('#aiKey').value = c2.aiKey||'';
+      if($('#aiModel')) $('#aiModel').value = c2.aiModel||'';
+      if($('#aiBase')) $('#aiBase').value = c2.aiBase||'';
+      updateAiStatus();
+    } else if(c.aiUpdated && (!r || (r.updated_at||'') < c.aiUpdated)){
+      await pushSettings();
+    }
+  }catch(e){ /* best-effort */ }
+}
 async function syncNow(){
   try{
     $('#syncStatus').textContent='Syncing…';
+    await pullSettings();
     for(const t of TABLES){
       // push local: try one batch, fall back to per-row so one bad record can't block the rest
       if(store[t].length){
@@ -934,8 +969,10 @@ $('#aiProvider').addEventListener('change', ()=>{
 });
 $('#aiSave').addEventListener('click', ()=>{
   saveCfg({ ...cfg(), aiProvider:$('#aiProvider').value, aiKey:$('#aiKey').value.trim(),
-    aiModel:$('#aiModel').value.trim(), aiBase:$('#aiBase').value.trim() });
-  updateAiStatus(); toast('AI settings saved');
+    aiModel:$('#aiModel').value.trim(), aiBase:$('#aiBase').value.trim(), aiUpdated: now() });
+  updateAiStatus();
+  if(session()){ pushSettings(); toast('AI settings saved to your account ✓'); }
+  else toast('AI settings saved on this device (sign in to sync them)');
 });
 function updateAiStatus(){
   const a = aiConf();
