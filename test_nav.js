@@ -1,0 +1,28 @@
+const { JSDOM } = require('jsdom');
+const fs = require('fs');
+const html = fs.readFileSync('./index.html','utf8');
+let pass=0, fail=0;
+const ok=(c,n)=>{ c?(pass++,console.log('  PASS '+n)):(fail++,console.log('  FAIL: '+n)); };
+const dom = new JSDOM(html,{url:'http://localhost/',runScripts:'dangerously',beforeParse(w){w.confirm=()=>true;}});
+const doc = dom.window.document;
+const click = el => el.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true}));
+const active = () => doc.querySelector('.tab.active').id;
+
+console.log('== Dashboard card navigation ==');
+ok(active()==='tab-dashboard','starts on dashboard');
+click(doc.querySelector('.card[data-goto="tasks"] .big'));
+ok(active()==='tab-tasks','Work Efficiency card -> Tasks tab');
+ok(doc.querySelector('nav button[data-tab="tasks"]').classList.contains('active'),'nav highlights Tasks');
+click(doc.querySelector('nav button[data-tab="dashboard"]'));
+click(doc.querySelector('.card[data-goto="sales"]'));
+ok(active()==='tab-sales','Sales Efficiency card -> Sales tab');
+click(doc.querySelector('nav button[data-tab="dashboard"]'));
+click(doc.querySelector('.card[data-goto="meetings"] h3'));
+ok(active()==='tab-meetings','Meetings card -> Meetings tab');
+click(doc.querySelector('nav button[data-tab="dashboard"]'));
+click(doc.querySelector('.card[data-goto="deadlines"]'));
+ok(active()==='tab-deadlines','Deadlines card -> Deadlines tab');
+click(doc.querySelector('nav button[data-tab="ai"]'));
+ok(active()==='tab-ai','nav buttons still work');
+console.log(`===== RESULT: ${pass} passed, ${fail} failed =====`);
+process.exit(fail?1:0);

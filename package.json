@@ -1,0 +1,7 @@
+{
+  "name": "efficiency-tracker",
+  "version": "1.0.0",
+  "description": "Personal efficiency tracker: tasks, sales, meetings, deadlines. Offline-first with Supabase sync and an open-model AI assistant.",
+  "scripts": { "test": "node test_ai.js && node test_nav.js" },
+  "devDependencies": { "jsdom": "^25.0.0" }
+}

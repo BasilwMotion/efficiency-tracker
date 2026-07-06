@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1218">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Efficiency Tracker</title>
+<style>
+  :root{
+    --bg:#0f1218; --panel:#171c26; --panel2:#1e2532; --border:#2a3345;
+    --text:#e8ecf3; --muted:#8b95a8; --accent:#4f8cff; --green:#3ddc84;
+    --red:#ff5c5c; --amber:#ffb84d; --radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+  header{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;background:var(--panel);border-bottom:1px solid var(--border)}
+  header h1{font-size:18px;font-weight:600}
+  header .sync-status{font-size:12px;color:var(--muted)}
+  nav{display:flex;gap:4px;padding:10px 22px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:nowrap;overflow-x:auto;position:sticky;top:0;z-index:50;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  nav button{background:transparent;border:1px solid transparent;color:var(--muted);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;white-space:nowrap;flex-shrink:0;transition:background .15s,color .15s,transform .1s}
+  nav button.active{background:var(--panel2);color:var(--text);border-color:var(--border)}
+  nav button:hover{color:var(--text)}
+  main{padding:22px;max-width:1100px;margin:0 auto}
+  .tab{display:none}
+  .tab.active{display:block}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:20px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px}
+  .card .big{font-size:30px;font-weight:700}
+  .card .sub{font-size:12px;color:var(--muted);margin-top:4px}
+  .bar{height:6px;background:var(--panel2);border-radius:3px;margin-top:10px;overflow:hidden}
+  .bar>div{height:100%;background:var(--accent);border-radius:3px;transition:width .3s}
+  .section{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:18px}
+  .section h2{font-size:15px;margin-bottom:12px}
+  form.entry{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  input,select,textarea{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:14px;font-family:inherit}
+  input:focus,select:focus{outline:1px solid var(--accent)}
+  input[type=date],input[type=datetime-local]{color-scheme:dark}
+  button.btn{background:var(--accent);border:none;color:#fff;padding:9px 16px;border-radius:8px;cursor:pointer;font-size:14px}
+  button.btn.secondary{background:var(--panel2);border:1px solid var(--border);color:var(--text)}
+  button.btn.danger{background:transparent;border:none;color:var(--red);padding:4px 8px;font-size:16px}
+  ul.items{list-style:none}
+  ul.items li{display:flex;align-items:center;gap:10px;padding:10px 6px;border-bottom:1px solid var(--border)}
+  ul.items li:last-child{border-bottom:none}
+  ul.items input[type=checkbox]{width:18px;height:18px;accent-color:var(--green);cursor:pointer;flex-shrink:0}
+  .item-title{flex:1}
+  .done .item-title{text-decoration:line-through;color:var(--muted)}
+  .tag{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+  .tag.work{color:var(--accent)} .tag.sales{color:var(--green)}
+  .tag.high{color:var(--red)} .tag.med{color:var(--amber)} .tag.low{color:var(--muted)}
+  .tag.overdue{color:var(--red);border-color:var(--red)}
+  .tag.soon{color:var(--amber);border-color:var(--amber)}
+  .meta{font-size:12px;color:var(--muted);white-space:nowrap}
+  .empty{color:var(--muted);font-size:13px;padding:10px 0}
+  .settings-grid{display:grid;gap:10px;max-width:520px}
+  .settings-grid label{font-size:13px;color:var(--muted)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  #toast{position:fixed;bottom:20px;right:20px;background:var(--panel2);border:1px solid var(--border);padding:12px 18px;border-radius:8px;font-size:13px;display:none;z-index:99}
+  .checklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-bottom:14px}
+  .checklist label{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px;cursor:pointer;font-size:13px}
+  .checklist input{accent-color:var(--green);width:16px;height:16px}
+  .msg{max-width:80%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .msg.user{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+  .msg.ai{align-self:flex-start;background:var(--panel2);border:1px solid var(--border);border-bottom-left-radius:4px}
+  .msg.action{align-self:flex-start;background:transparent;border:1px dashed var(--border);color:var(--green);font-size:12px;padding:6px 10px}
+  .msg.thinking{align-self:flex-start;color:var(--muted);font-style:italic;background:transparent}
+  html{-webkit-tap-highlight-color:transparent}
+  input,select,button{touch-action:manipulation}
+  button.btn:active,nav button:active{transform:scale(.97)}
+  ul.items li{animation:fadeIn .18s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  .card{transition:border-color .15s,transform .1s}
+  .card[data-goto]{cursor:pointer}
+  .card[data-goto]:active{transform:scale(.98)}
+  .card:hover{border-color:var(--accent)}
+  .tab.active{animation:fadeIn .15s ease}
+  @media(max-width:640px){
+    main{padding:12px}
+    header{padding:12px 14px}
+    header h1{font-size:16px}
+    nav{padding:8px 10px;gap:2px}
+    nav button{padding:10px 12px}
+    .section{padding:14px}
+    input,select,textarea{font-size:16px}
+    form.entry{flex-direction:column}
+    form.entry input,form.entry select,form.entry button.btn{width:100%;min-width:0;flex:none}
+    #chatForm{flex-direction:row}
+    #chatForm input{width:auto;flex:1}
+    #chatForm button.btn{width:auto}
+    ul.items li{flex-wrap:wrap;row-gap:4px;padding:12px 4px}
+    ul.items input[type=checkbox]{width:22px;height:22px}
+    button.btn{padding:12px 16px}
+    button.btn.danger{padding:8px 10px}
+    .card .big{font-size:24px}
+    .msg{max-width:92%}
+    #tab-ai .section{height:calc(100dvh - 200px)!important;min-height:340px}
+    .settings-grid{max-width:100%}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>⚡ Efficiency Tracker</h1>
+  <span class="sync-status" id="syncStatus">Local only</span>
+</header>
+<nav>
+  <button data-tab="dashboard" class="active">Dashboard</button>
+  <button data-tab="tasks">Tasks</button>
+  <button data-tab="sales">Sales</button>
+  <button data-tab="meetings">Meetings</button>
+  <button data-tab="deadlines">Deadlines</button>
+  <button data-tab="ai">AI Chat</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+<main>
+
+<!-- DASHBOARD -->
+<div class="tab active" id="tab-dashboard">
+  <div class="cards">
+    <div class="card" data-goto="tasks" title="Open Tasks"><h3>Work Efficiency (7d)</h3><div class="big" id="dWork">–</div><div class="sub" id="dWorkSub"></div><div class="bar"><div id="dWorkBar" style="width:0%"></div></div></div>
+    <div class="card" data-goto="sales" title="Open Sales"><h3>Sales Efficiency (7d)</h3><div class="big" id="dSales">–</div><div class="sub" id="dSalesSub"></div><div class="bar"><div id="dSalesBar" style="width:0%;background:var(--green)"></div></div></div>
+    <div class="card" data-goto="meetings" title="Open Meetings"><h3>Meetings This Week</h3><div class="big" id="dMeet">–</div><div class="sub" id="dMeetSub"></div></div>
+    <div class="card" data-goto="deadlines" title="Open Deadlines"><h3>Deadlines At Risk</h3><div class="big" id="dDead">–</div><div class="sub" id="dDeadSub"></div></div>
+  </div>
+  <div class="section"><h2>✅ To-Complete Checklist</h2><ul class="items" id="dashChecklist"></ul></div>
+  <div class="section"><h2>Today's Focus</h2><ul class="items" id="focusList"></ul></div>
+  <div class="section"><h2>Recently Completed</h2><ul class="items" id="recentList"></ul></div>
+</div>
+
+<!-- TASKS -->
+<div class="tab" id="tab-tasks">
+  <div class="section">
+    <h2>Add Task</h2>
+    <form class="entry" id="taskForm">
+      <input type="text" id="taskTitle" placeholder="Task title" required style="flex:1;min-width:200px">
+      <select id="taskCat"><option value="work">Work</option><option value="sales">Sales</option></select>
+      <select id="taskPri"><option value="high">High</option><option value="med" selected>Medium</option><option value="low">Low</option></select>
+      <input type="date" id="taskDue">
+      <button class="btn" type="submit">Add</button>
+    </form>
+    <h2>Open Tasks</h2>
+    <ul class="items" id="taskList"></ul>
+    <h2 style="margin-top:18px">Completed Work</h2>
+    <ul class="items" id="taskDoneList"></ul>
+  </div>
+</div>
+
+<!-- SALES -->
+<div class="tab" id="tab-sales">
+  <div class="section">
+    <h2>Log Sales Activity</h2>
+    <form class="entry" id="salesForm">
+      <select id="salesType">
+        <option value="call">Call</option><option value="follow_up">Follow-up</option>
+        <option value="proposal">Proposal sent</option><option value="meeting">Sales meeting</option>
+        <option value="closed">Deal closed</option><option value="lost">Deal lost</option>
+      </select>
+      <input type="text" id="salesClient" placeholder="Client / lead" style="flex:1;min-width:160px">
+      <input type="number" id="salesAmount" placeholder="Amount ($)" min="0" step="0.01" style="width:130px">
+      <button class="btn" type="submit">Log</button>
+    </form>
+    <h2>Daily Sales Checklist</h2>
+    <div class="checklist" id="salesChecklist"></div>
+    <h2>Activity Log</h2>
+    <ul class="items" id="salesList"></ul>
+  </div>
+</div>
+
+<!-- MEETINGS -->
+<div class="tab" id="tab-meetings">
+  <div class="section">
+    <h2>Add Meeting</h2>
+    <form class="entry" id="meetForm">
+      <input type="text" id="meetTitle" placeholder="Meeting title" required style="flex:1;min-width:200px">
+      <input type="datetime-local" id="meetWhen" required>
+      <input type="text" id="meetWith" placeholder="With (optional)">
+      <button class="btn" type="submit">Add</button>
+    </form>
+    <h2>Upcoming</h2><ul class="items" id="meetList"></ul>
+    <h2 style="margin-top:18px">Past</h2><ul class="items" id="meetPastList"></ul>
+  </div>
+</div>
+
+<!-- DEADLINES -->
+<div class="tab" id="tab-deadlines">
+  <div class="section">
+    <h2>Add Project Deadline</h2>
+    <form class="entry" id="deadForm">
+      <input type="text" id="deadTitle" placeholder="Project / deliverable" required style="flex:1;min-width:200px">
+      <input type="date" id="deadDue" required>
+      <button class="btn" type="submit">Add</button>
+    </form>
+    <h2>Active Deadlines</h2><ul class="items" id="deadList"></ul>
+    <h2 style="margin-top:18px">Delivered</h2><ul class="items" id="deadDoneList"></ul>
+  </div>
+</div>
+
+<!-- AI CHAT -->
+<div class="tab" id="tab-ai">
+  <div class="section" style="display:flex;flex-direction:column;height:70vh">
+    <h2>🤖 Assistant <span class="meta" id="aiStatus"></span></h2>
+    <div id="chatLog" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:10px 4px"></div>
+    <form class="entry" id="chatForm" style="margin:10px 0 0">
+      <input type="text" id="chatInput" placeholder='Try: "add task: send invoices, high priority" or "what should I focus on?"' style="flex:1" autocomplete="off">
+      <button class="btn" type="submit" id="chatSend">Send</button>
+    </form>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div class="tab" id="tab-settings">
+  <div class="section">
+    <h2>Supabase Sync</h2>
+    <div class="settings-grid">
+      <label>Project URL (https://xxxx.supabase.co)</label>
+      <input type="text" id="sbUrl" placeholder="https://yourproject.supabase.co">
+      <label>Anon (public) API key</label>
+      <input type="password" id="sbKey" placeholder="eyJ...">
+      <div class="row">
+        <button class="btn" id="sbSave">Save</button>
+        <button class="btn secondary" id="sbSync">Sync now</button>
+        <label class="row" style="gap:6px"><input type="checkbox" id="sbAuto"> Auto-sync on changes</label>
+      </div>
+      <div class="sub" id="sbInfo" style="font-size:12px;color:var(--muted)">Run supabase-setup.sql in your Supabase SQL editor first. Data always saves locally; sync merges with the cloud (last edit wins).</div>
+    </div>
+  </div>
+  <div class="section">
+    <h2>AI Assistant</h2>
+    <div class="settings-grid">
+      <label>Provider — open-source models</label>
+      <select id="aiProvider">
+        <option value="groq">Groq — Llama 3.3 70B (free key at console.groq.com)</option>
+        <option value="openrouter">OpenRouter — free open models (openrouter.ai/keys)</option>
+        <option value="custom">Ollama / custom endpoint (local, no key needed)</option>
+      </select>
+      <label>API key (stored only in your browser; not needed for Ollama)</label>
+      <input type="password" id="aiKey" placeholder="gsk_... or sk-or-...">
+      <label>Model</label>
+      <input type="text" id="aiModel" placeholder="llama-3.3-70b-versatile">
+      <label>Base URL (custom provider only)</label>
+      <input type="text" id="aiBase" placeholder="http://localhost:11434/v1">
+      <div class="row"><button class="btn" id="aiSave">Save AI settings</button></div>
+    </div>
+  </div>
+  <div class="section">
+    <h2>Data</h2>
+    <div class="row">
+      <button class="btn secondary" id="exportBtn">Export JSON</button>
+      <button class="btn secondary" id="importBtn">Import JSON</button>
+      <input type="file" id="importFile" accept=".json" style="display:none">
+    </div>
+  </div>
+</div>
+</main>
+<div id="toast"></div>
+<script>
+'use strict';
+/* ============ STORE ============ */
+const TABLES = ['tasks','sales','meetings','deadlines'];
+const store = { tasks:[], sales:[], meetings:[], deadlines:[] };
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() :
+  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16);}));
+const now = () => new Date().toISOString();
+
+function load(){
+  for(const t of TABLES){
+    try{ store[t] = JSON.parse(localStorage.getItem('eff_'+t)) || []; }
+    catch(e){ store[t]=[]; }
+  }
+}
+function persist(table){
+  localStorage.setItem('eff_'+table, JSON.stringify(store[table]));
+  renderAll();
+  if(cfg().auto) debounceSync();
+}
+function addRec(table, data){
+  store[table].push({ id: uid(), created_at: now(), updated_at: now(), deleted: false, ...data });
+  persist(table);
+}
+function updateRec(table, id, patch){
+  const r = store[table].find(x=>x.id===id);
+  if(!r) return;
+  Object.assign(r, patch, { updated_at: now() });
+  persist(table);
+}
+const delRec = (table,id) => updateRec(table,id,{deleted:true});
+const live = table => store[table].filter(r=>!r.deleted);
+
+/* ============ HELPERS ============ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const catCls = c => c==='sales' ? 'sales' : 'work';
+const priCls = p => ({high:'high',med:'med',low:'low'})[p] || 'med';
+const fmtDate = d => d ? new Date(d+(d.length===10?'T00:00':'')).toLocaleDateString(undefined,{month:'short',day:'numeric'}) : '';
+const fmtDT = d => d ? new Date(d).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '';
+const daysUntil = d => Math.ceil((new Date(d+(d.length===10?'T23:59':'')) - new Date())/86400000);
+const within7d = iso => (Date.now() - new Date(iso).getTime()) < 7*86400000;
+function toast(msg,ok=true){
+  const t=$('#toast'); t.textContent=msg; t.style.display='block';
+  t.style.borderColor = ok?'var(--green)':'var(--red)';
+  clearTimeout(t._h); t._h=setTimeout(()=>t.style.display='none',3000);
+}
+
+/* ============ EFFICIENCY MATH ============ */
+function workStats(){
+  const recent = live('tasks').filter(t => within7d(t.created_at) || (t.completed_at && within7d(t.completed_at)));
+  const done = recent.filter(t=>t.done).length;
+  const total = recent.length;
+  return { done, total, pct: total? Math.round(done/total*100) : null };
+}
+function salesStats(){
+  const recent = live('sales').filter(s=>within7d(s.created_at));
+  const closed = recent.filter(s=>s.type==='closed');
+  const attempts = recent.filter(s=>['call','follow_up','proposal','meeting'].includes(s.type)).length;
+  const decided = closed.length + recent.filter(s=>s.type==='lost').length;
+  const revenue = closed.reduce((a,s)=>a+(parseFloat(s.amount)||0),0);
+  return { closed: closed.length, attempts, revenue,
+    pct: decided ? Math.round(closed.length/decided*100) : null };
+}
+
+/* ============ RENDER ============ */
+function renderDashboard(){
+  const w = workStats();
+  $('#dWork').textContent = w.pct===null ? '–' : w.pct+'%';
+  $('#dWorkSub').textContent = `${w.done} of ${w.total} tasks completed`;
+  $('#dWorkBar').style.width = (w.pct||0)+'%';
+
+  const s = salesStats();
+  $('#dSales').textContent = s.pct===null ? '–' : s.pct+'%';
+  $('#dSalesSub').textContent = `${s.closed} closed · ${s.attempts} activities · $${s.revenue.toLocaleString()}`;
+  $('#dSalesBar').style.width = (s.pct||0)+'%';
+
+  const meets = live('meetings').filter(m=>{
+    const d=new Date(m.when), n=new Date();
+    const start=new Date(n); start.setDate(n.getDate()-n.getDay()); start.setHours(0,0,0,0);
+    const end=new Date(start); end.setDate(start.getDate()+7);
+    return d>=start && d<end;
+  });
+  $('#dMeet').textContent = meets.length;
+  $('#dMeetSub').textContent = meets.filter(m=>m.done).length + ' attended';
+
+  const risk = live('deadlines').filter(d=>!d.done && daysUntil(d.due)<=3);
+  $('#dDead').textContent = risk.length;
+  $('#dDeadSub').textContent = risk.length? 'due within 3 days' : 'all clear';
+
+  // To-complete checklist: all open tasks, priority order, live checkboxes
+  const openAll = live('tasks').filter(t=>!t.done).sort((a,b)=>({high:0,med:1,low:2}[a.priority]-{high:0,med:1,low:2}[b.priority]));
+  $('#dashChecklist').innerHTML = openAll.length? openAll.map(t=>
+    `<li><input type="checkbox" data-t="tasks" data-id="${t.id}">
+     <span class="item-title">${esc(t.title)}</span>
+     <span class="tag ${catCls(t.category)}">${catCls(t.category)}</span><span class="tag ${priCls(t.priority)}">${priCls(t.priority)}</span>
+     ${t.due? `<span class="tag ${daysUntil(t.due)<0?'overdue':daysUntil(t.due)<=2?'soon':''}">${fmtDate(t.due)}</span>`:''}</li>`).join('')
+    : '<li class="empty">Checklist clear — add tasks in the Tasks tab or ask the AI.</li>';
+
+  // Today's focus: overdue/high-priority open tasks + deadlines due soon
+  const focus = [
+    ...live('tasks').filter(t=>!t.done && (t.priority==='high' || (t.due && daysUntil(t.due)<=1))).slice(0,5)
+      .map(t=>`<li><span class="item-title">${esc(t.title)}</span><span class="tag ${catCls(t.category)}">${catCls(t.category)}</span></li>`),
+    ...live('deadlines').filter(d=>!d.done && daysUntil(d.due)<=3).slice(0,3)
+      .map(d=>`<li><span class="item-title">${esc(d.title)}</span><span class="tag overdue">due ${fmtDate(d.due)}</span></li>`)
+  ];
+  $('#focusList').innerHTML = focus.length? focus.join('') : '<li class="empty">Nothing urgent. Nice.</li>';
+
+  const recent = live('tasks').filter(t=>t.done && t.completed_at).sort((a,b)=>b.completed_at.localeCompare(a.completed_at)).slice(0,6);
+  $('#recentList').innerHTML = recent.length ? recent.map(t=>
+    `<li class="done"><span class="item-title">${esc(t.title)}</span><span class="meta">${fmtDT(t.completed_at)}</span></li>`).join('')
+    : '<li class="empty">No completed work yet.</li>';
+}
+
+function renderTasks(){
+  const open = live('tasks').filter(t=>!t.done).sort((a,b)=>({high:0,med:1,low:2}[a.priority]-{high:0,med:1,low:2}[b.priority]));
+  $('#taskList').innerHTML = open.length? open.map(t=>{
+    const dueTag = t.due ? `<span class="tag ${daysUntil(t.due)<0?'overdue':daysUntil(t.due)<=2?'soon':''}">${fmtDate(t.due)}</span>` : '';
+    return `<li><input type="checkbox" data-t="tasks" data-id="${t.id}">
+      <span class="item-title">${esc(t.title)}</span>
+      <span class="tag ${catCls(t.category)}">${catCls(t.category)}</span>
+      <span class="tag ${priCls(t.priority)}">${priCls(t.priority)}</span>${dueTag}
+      <button class="btn danger" data-del="tasks" data-id="${t.id}">×</button></li>`;
+  }).join('') : '<li class="empty">No open tasks.</li>';
+
+  const done = live('tasks').filter(t=>t.done).sort((a,b)=>(b.completed_at||'').localeCompare(a.completed_at||'')).slice(0,20);
+  $('#taskDoneList').innerHTML = done.length? done.map(t=>
+    `<li class="done"><input type="checkbox" checked data-t="tasks" data-id="${t.id}">
+     <span class="item-title">${esc(t.title)}</span><span class="meta">${fmtDT(t.completed_at)}</span>
+     <button class="btn danger" data-del="tasks" data-id="${t.id}">×</button></li>`).join('')
+    : '<li class="empty">Nothing completed yet.</li>';
+}
+
+const SALES_LABELS = {call:'Call',follow_up:'Follow-up',proposal:'Proposal',meeting:'Sales meeting',closed:'✅ Closed',lost:'❌ Lost'};
+const CHECKLIST_ITEMS = [
+  {k:'calls', label:'Made outreach calls'},
+  {k:'followups', label:'Sent follow-ups'},
+  {k:'pipeline', label:'Reviewed pipeline'},
+  {k:'crm', label:'Updated CRM / notes'},
+];
+function renderSales(){
+  const today = new Date().toISOString().slice(0,10);
+  const checks = JSON.parse(localStorage.getItem('eff_checklist_'+today) || '{}');
+  $('#salesChecklist').innerHTML = CHECKLIST_ITEMS.map(c=>
+    `<label><input type="checkbox" data-check="${c.k}" ${checks[c.k]?'checked':''}> ${c.label}</label>`).join('');
+
+  const list = live('sales').sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,30);
+  $('#salesList').innerHTML = list.length? list.map(s=>
+    `<li><span class="item-title">${SALES_LABELS[s.type]||esc(s.type)}${s.client?' — '+esc(s.client):''}</span>
+     ${s.amount? `<span class="tag sales">$${Number(s.amount).toLocaleString()}</span>`:''}
+     <span class="meta">${fmtDT(s.created_at)}</span>
+     <button class="btn danger" data-del="sales" data-id="${s.id}">×</button></li>`).join('')
+    : '<li class="empty">No activity logged.</li>';
+}
+
+function renderMeetings(){
+  const all = live('meetings').sort((a,b)=>a.when.localeCompare(b.when));
+  const upcoming = all.filter(m=>new Date(m.when)>=new Date() && !m.done);
+  const past = all.filter(m=>new Date(m.when)<new Date() || m.done).reverse().slice(0,15);
+  const row = m => `<li class="${m.done?'done':''}"><input type="checkbox" data-t="meetings" data-id="${m.id}" ${m.done?'checked':''}>
+    <span class="item-title">${esc(m.title)}${m.with_who?' · '+esc(m.with_who):''}</span>
+    <span class="meta">${fmtDT(m.when)}</span>
+    <button class="btn danger" data-del="meetings" data-id="${m.id}">×</button></li>`;
+  $('#meetList').innerHTML = upcoming.length? upcoming.map(row).join('') : '<li class="empty">No upcoming meetings.</li>';
+  $('#meetPastList').innerHTML = past.length? past.map(row).join('') : '<li class="empty">None yet.</li>';
+}
+
+function renderDeadlines(){
+  const active = live('deadlines').filter(d=>!d.done).sort((a,b)=>a.due.localeCompare(b.due));
+  $('#deadList').innerHTML = active.length? active.map(d=>{
+    const n = daysUntil(d.due);
+    const tag = n<0? `<span class="tag overdue">${-n}d overdue</span>` : n<=3? `<span class="tag soon">${n}d left</span>` : `<span class="tag">${n}d left</span>`;
+    return `<li><input type="checkbox" data-t="deadlines" data-id="${d.id}">
+      <span class="item-title">${esc(d.title)}</span><span class="meta">${fmtDate(d.due)}</span>${tag}
+      <button class="btn danger" data-del="deadlines" data-id="${d.id}">×</button></li>`;
+  }).join('') : '<li class="empty">No active deadlines.</li>';
+
+  const done = live('deadlines').filter(d=>d.done).slice(-10).reverse();
+  $('#deadDoneList').innerHTML = done.length? done.map(d=>
+    `<li class="done"><input type="checkbox" checked data-t="deadlines" data-id="${d.id}">
+     <span class="item-title">${esc(d.title)}</span><span class="meta">${fmtDate(d.due)}</span>
+     <button class="btn danger" data-del="deadlines" data-id="${d.id}">×</button></li>`).join('')
+    : '<li class="empty">Nothing delivered yet.</li>';
+}
+
+function renderAll(){ renderDashboard(); renderTasks(); renderSales(); renderMeetings(); renderDeadlines(); }
+
+/* ============ EVENTS ============ */
+function switchTab(name){
+  if(!document.getElementById('tab-'+name)) return;
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active', x.dataset.tab===name));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  $('#tab-'+name).classList.add('active');
+}
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+document.body.addEventListener('click',e=>{
+  const card = e.target.closest('.card[data-goto]');
+  if(card) switchTab(card.dataset.goto);
+});
+
+$('#taskForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  addRec('tasks',{ title:$('#taskTitle').value.trim(), category:$('#taskCat').value,
+    priority:$('#taskPri').value, due:$('#taskDue').value||null, done:false, completed_at:null });
+  e.target.reset();
+});
+$('#salesForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  addRec('sales',{ type:$('#salesType').value, client:$('#salesClient').value.trim()||null,
+    amount:$('#salesAmount').value? parseFloat($('#salesAmount').value):null });
+  e.target.reset();
+});
+$('#meetForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  addRec('meetings',{ title:$('#meetTitle').value.trim(), when:new Date($('#meetWhen').value).toISOString(),
+    with_who:$('#meetWith').value.trim()||null, done:false });
+  e.target.reset();
+});
+$('#deadForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  addRec('deadlines',{ title:$('#deadTitle').value.trim(), due:$('#deadDue').value, done:false });
+  e.target.reset();
+});
+
+document.body.addEventListener('change',e=>{
+  const el=e.target;
+  if(el.dataset.t && el.dataset.id){
+    const table=el.dataset.t, id=el.dataset.id, done=el.checked;
+    const patch = {done};
+    if(table==='tasks') patch.completed_at = done? now() : null;
+    updateRec(table,id,patch);
+  }
+  if(el.dataset.check){
+    const today=new Date().toISOString().slice(0,10);
+    const checks=JSON.parse(localStorage.getItem('eff_checklist_'+today)||'{}');
+    checks[el.dataset.check]=el.checked;
+    localStorage.setItem('eff_checklist_'+today,JSON.stringify(checks));
+  }
+});
+document.body.addEventListener('click',e=>{
+  const el=e.target;
+  if(el.dataset.del && el.dataset.id && confirm('Delete this item?')) delRec(el.dataset.del, el.dataset.id);
+});
+
+/* ============ SUPABASE SYNC ============ */
+const cfg = () => { try{ return JSON.parse(localStorage.getItem('eff_cfg')||'{}') || {}; }catch(e){ return {}; } };
+function saveCfg(c){ localStorage.setItem('eff_cfg',JSON.stringify(c)); updateSyncStatus(); }
+function updateSyncStatus(){
+  const c=cfg();
+  let host = ''; try{ host = c.url ? new URL(c.url).hostname : ''; }catch(e){ host = 'invalid URL'; }
+  $('#syncStatus').textContent = c.url ? ('Supabase: '+host + (c.lastSync? ' · synced '+new Date(c.lastSync).toLocaleTimeString():'')) : 'Local only';
+}
+async function sbFetch(path, opts={}){
+  const c=cfg();
+  if(!c.url||!c.key) throw new Error('Supabase not configured (Settings tab)');
+  const res = await fetch(c.url.replace(/\/$/,'')+'/rest/v1/'+path, {
+    ...opts,
+    headers:{ apikey:c.key, Authorization:'Bearer '+c.key, 'Content-Type':'application/json',
+      Prefer:'resolution=merge-duplicates,return=minimal', ...(opts.headers||{}) }
+  });
+  if(!res.ok) throw new Error('Supabase '+res.status+': '+(await res.text()).slice(0,200));
+  return res.status===204? null : res.json();
+}
+async function syncNow(){
+  try{
+    $('#syncStatus').textContent='Syncing…';
+    for(const t of TABLES){
+      // push local
+      if(store[t].length) await sbFetch(t, { method:'POST', body: JSON.stringify(store[t]) });
+      // pull remote, merge last-write-wins
+      const remote = await sbFetch(t+'?select=*', { method:'GET', headers:{Prefer:''} });
+      const byId = Object.fromEntries(store[t].map(r=>[r.id,r]));
+      for(const rr of remote){
+        const lr = byId[rr.id];
+        if(!lr) store[t].push(rr);
+        else if((rr.updated_at||'') > (lr.updated_at||'')) Object.assign(lr, rr);
+      }
+      localStorage.setItem('eff_'+t, JSON.stringify(store[t]));
+    }
+    const c=cfg(); c.lastSync=now(); saveCfg(c);
+    renderAll(); toast('Synced with Supabase ✓');
+  }catch(err){ toast(err.message,false); updateSyncStatus(); }
+}
+let _syncT; const debounceSync = ()=>{ clearTimeout(_syncT); _syncT=setTimeout(syncNow, 4000); };
+
+$('#sbSave').addEventListener('click',()=>{
+  saveCfg({ ...cfg(), url:$('#sbUrl').value.trim(), key:$('#sbKey').value.trim(), auto:$('#sbAuto').checked });
+  toast('Settings saved');
+});
+$('#sbSync').addEventListener('click',syncNow);
+$('#sbAuto').addEventListener('change',()=>saveCfg({...cfg(), auto:$('#sbAuto').checked}));
+
+/* ============ IMPORT / EXPORT ============ */
+$('#exportBtn').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify(store,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='efficiency-data-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+});
+$('#importBtn').addEventListener('click',()=>$('#importFile').click());
+$('#importFile').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{
+      const data=JSON.parse(r.result);
+      for(const t of TABLES){ if(Array.isArray(data[t])){ store[t]=data[t]; localStorage.setItem('eff_'+t,JSON.stringify(store[t])); } }
+      renderAll(); toast('Data imported ✓');
+    }catch(err){ toast('Invalid file',false); } };
+  r.readAsText(f);
+});
+
+/* ============ AI ASSISTANT (open-source models, OpenAI-compatible API) ============ */
+const AI_TOOLS = [
+  { name:'get_data', description:'Get a snapshot of all tracker data: open+completed tasks, sales log, meetings, deadlines, and efficiency stats. Call this before answering questions about the data.',
+    input_schema:{ type:'object', properties:{} } },
+  { name:'add_task', description:'Add a new task to the tracker.',
+    input_schema:{ type:'object', properties:{
+      title:{type:'string'}, category:{type:'string', enum:['work','sales']},
+      priority:{type:'string', enum:['high','med','low']}, due:{type:'string', description:'YYYY-MM-DD (optional)'} },
+      required:['title'] } },
+  { name:'complete_task', description:'Mark a task as completed (or reopen it). Match by exact or partial title.',
+    input_schema:{ type:'object', properties:{ title:{type:'string'}, done:{type:'boolean', description:'default true'} }, required:['title'] } },
+  { name:'delete_item', description:'Delete an item by partial title match.',
+    input_schema:{ type:'object', properties:{ table:{type:'string', enum:['tasks','sales','meetings','deadlines']}, title:{type:'string'} }, required:['table','title'] } },
+  { name:'log_sale', description:'Log a sales activity.',
+    input_schema:{ type:'object', properties:{
+      type:{type:'string', enum:['call','follow_up','proposal','meeting','closed','lost']},
+      client:{type:'string'}, amount:{type:'number'} }, required:['type'] } },
+  { name:'add_meeting', description:'Add a meeting.',
+    input_schema:{ type:'object', properties:{ title:{type:'string'}, when:{type:'string', description:'ISO datetime'}, with_who:{type:'string'} }, required:['title','when'] } },
+  { name:'add_deadline', description:'Add a project deadline.',
+    input_schema:{ type:'object', properties:{ title:{type:'string'}, due:{type:'string', description:'YYYY-MM-DD'} }, required:['title','due'] } }
+];
+const OPENAI_TOOLS = () => AI_TOOLS.map(t=>({ type:'function', function:{ name:t.name, description:t.description, parameters:t.input_schema } }));
+
+function findByTitle(table, title){
+  const q = String(title||'').toLowerCase();
+  return live(table).find(r => (r.title||'').toLowerCase() === q) ||
+         live(table).find(r => (r.title||'').toLowerCase().includes(q));
+}
+function runTool(name, inp){
+  inp = inp || {};
+  switch(name){
+    case 'get_data': {
+      const w = workStats(), s = salesStats();
+      return JSON.stringify({
+        stats:{ work_efficiency_7d: w, sales_efficiency_7d: s },
+        open_tasks: live('tasks').filter(t=>!t.done).map(t=>({title:t.title,category:t.category,priority:t.priority,due:t.due})),
+        completed_tasks_recent: live('tasks').filter(t=>t.done).slice(-15).map(t=>({title:t.title,completed_at:t.completed_at})),
+        sales_log_recent: live('sales').slice(-20).map(x=>({type:x.type,client:x.client,amount:x.amount,at:x.created_at})),
+        meetings: live('meetings').map(m=>({title:m.title,when:m.when,with:m.with_who,done:m.done})),
+        deadlines: live('deadlines').map(d=>({title:d.title,due:d.due,done:d.done,days_left:daysUntil(d.due)}))
+      });
+    }
+    case 'add_task': {
+      if(!inp.title || typeof inp.title!=='string') return 'ERROR: title is required';
+      addRec('tasks',{ title:inp.title.slice(0,300), category:catCls(inp.category), priority:priCls(inp.priority),
+        due:(/^\d{4}-\d{2}-\d{2}$/.test(inp.due||'')? inp.due : null), done:false, completed_at:null });
+      return 'Task added: '+inp.title;
+    }
+    case 'complete_task': {
+      const t = findByTitle('tasks', inp.title);
+      if(!t) return 'ERROR: no task matching "'+inp.title+'"';
+      const done = inp.done!==false;
+      updateRec('tasks', t.id, { done, completed_at: done? now():null });
+      return (done?'Completed: ':'Reopened: ')+t.title;
+    }
+    case 'delete_item': {
+      if(!TABLES.includes(inp.table)) return 'ERROR: table must be one of '+TABLES.join(', ');
+      const r = findByTitle(inp.table, inp.title) || live(inp.table).find(x=>(x.client||'').toLowerCase().includes(String(inp.title||'').toLowerCase()));
+      if(!r) return 'ERROR: no '+inp.table+' item matching "'+inp.title+'"';
+      delRec(inp.table, r.id);
+      return 'Deleted from '+inp.table+': '+(r.title||r.client||r.id);
+    }
+    case 'log_sale': {
+      if(!['call','follow_up','proposal','meeting','closed','lost'].includes(inp.type)) return 'ERROR: invalid sale type';
+      const amt = (inp.amount===undefined||inp.amount===null)? null : Number(inp.amount);
+      addRec('sales',{ type:inp.type, client:inp.client? String(inp.client).slice(0,200):null, amount:(amt===null||isNaN(amt))? null: amt });
+      return 'Logged '+inp.type+(inp.client?' — '+inp.client:'')+(inp.amount?' $'+inp.amount:'');
+    }
+    case 'add_meeting': {
+      if(!inp.title) return 'ERROR: title is required';
+      const d = new Date(inp.when);
+      if(isNaN(d.getTime())) return 'ERROR: invalid datetime "'+inp.when+'"';
+      addRec('meetings',{ title:String(inp.title).slice(0,300), when:d.toISOString(), with_who:inp.with_who? String(inp.with_who).slice(0,200):null, done:false });
+      return 'Meeting added: '+inp.title;
+    }
+    case 'add_deadline': {
+      if(!inp.title) return 'ERROR: title is required';
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(inp.due||'')) return 'ERROR: due must be YYYY-MM-DD';
+      addRec('deadlines',{ title:String(inp.title).slice(0,300), due:inp.due, done:false });
+      return 'Deadline added: '+inp.title+' due '+inp.due;
+    }
+    default: return 'ERROR: unknown tool '+name;
+  }
+}
+
+const PROVIDERS = {
+  groq:       { base:'https://api.groq.com/openai/v1',  model:'llama-3.3-70b-versatile' },
+  openrouter: { base:'https://openrouter.ai/api/v1',    model:'meta-llama/llama-3.3-70b-instruct:free' },
+  custom:     { base:'http://localhost:11434/v1',       model:'llama3.2' }
+};
+function aiConf(){
+  const c = cfg();
+  const prov = PROVIDERS[c.aiProvider] ? c.aiProvider : 'groq';
+  const base = (prov==='custom' && c.aiBase) ? c.aiBase.replace(/\/$/,'') : PROVIDERS[prov].base;
+  return { provider:prov, base, model:(c.aiModel||PROVIDERS[prov].model), key:(c.aiKey||'').trim() };
+}
+
+const chatHistory = [];
+function chatBubble(cls, text){
+  const d = document.createElement('div');
+  d.className = 'msg '+cls; d.textContent = text;
+  $('#chatLog').appendChild(d);
+  $('#chatLog').scrollTop = $('#chatLog').scrollHeight;
+  return d;
+}
+function aiSystemPrompt(){
+  return 'You are the built-in assistant of a personal efficiency tracker app. Today is '+new Date().toDateString()+'. '+
+  'You can read the user\'s tasks, sales, meetings and deadlines with get_data, and modify them with the other tools. '+
+  'Use tools whenever the user asks about their data or wants changes; call get_data before answering data questions. '+
+  'Be concise, practical, and act like a sharp productivity coach.';
+}
+async function openaiCall(messages){
+  const a = aiConf();
+  const headers = { 'content-type':'application/json' };
+  if(a.key) headers['Authorization'] = 'Bearer '+a.key;
+  const res = await fetch(a.base+'/chat/completions', { method:'POST', headers,
+    body: JSON.stringify({ model:a.model, max_tokens:1024,
+      messages:[{role:'system', content:aiSystemPrompt()}, ...messages],
+      tools:OPENAI_TOOLS(), tool_choice:'auto' }) });
+  if(!res.ok){ const t = await res.text(); throw new Error('API '+res.status+': '+t.slice(0,300)); }
+  const j = await res.json();
+  if(!j.choices || !j.choices[0] || !j.choices[0].message) throw new Error('Unexpected API response');
+  return j.choices[0].message;
+}
+async function handleChat(userText){
+  chatBubble('user', userText);
+  const startLen = chatHistory.length;
+  chatHistory.push({ role:'user', content: userText });
+  const think = chatBubble('thinking', 'Thinking…');
+  $('#chatSend').disabled = true;
+  try{
+    const a = aiConf();
+    if(!a.key && a.provider!=='custom')
+      throw new Error('No API key set. Get a free key (console.groq.com or openrouter.ai/keys) and paste it in Settings → AI Assistant — or switch to a local Ollama endpoint.');
+    let guard = 0;
+    while(guard++ < 6){
+      const msg = await openaiCall(chatHistory);
+      chatHistory.push({ role:'assistant', content: msg.content||null, tool_calls: msg.tool_calls||undefined });
+      if(msg.content && String(msg.content).trim()) chatBubble('ai', String(msg.content).trim());
+      const calls = msg.tool_calls || [];
+      if(!calls.length) break;
+      for(const tc of calls){
+        let inp = {};
+        try{ inp = JSON.parse(tc.function.arguments||'{}'); }catch(e){}
+        const out = runTool(tc.function.name, inp);
+        if(tc.function.name!=='get_data') chatBubble('action', '⚙ '+out);
+        chatHistory.push({ role:'tool', tool_call_id: tc.id, content: String(out) });
+      }
+    }
+  }catch(err){
+    chatBubble('ai', '⚠ '+err.message);
+    chatHistory.length = startLen; // roll back the failed turn
+  }finally{
+    think.remove();
+    $('#chatSend').disabled = false;
+  }
+}
+$('#chatForm').addEventListener('submit', e=>{
+  e.preventDefault();
+  const v = $('#chatInput').value.trim();
+  if(!v) return;
+  $('#chatInput').value='';
+  handleChat(v);
+});
+$('#aiProvider').addEventListener('change', ()=>{
+  $('#aiModel').value = PROVIDERS[$('#aiProvider').value].model;
+  if($('#aiProvider').value==='custom' && !$('#aiBase').value) $('#aiBase').value = PROVIDERS.custom.base;
+});
+$('#aiSave').addEventListener('click', ()=>{
+  saveCfg({ ...cfg(), aiProvider:$('#aiProvider').value, aiKey:$('#aiKey').value.trim(),
+    aiModel:$('#aiModel').value.trim(), aiBase:$('#aiBase').value.trim() });
+  updateAiStatus(); toast('AI settings saved');
+});
+function updateAiStatus(){
+  const a = aiConf();
+  $('#aiStatus').textContent = (a.key || a.provider==='custom') ? ('· '+a.provider+' / '+a.model) : '· no API key (Settings → AI Assistant)';
+}
+
+/* ============ INIT ============ */
+load();
+const c0=cfg();
+$('#sbUrl').value=c0.url||''; $('#sbKey').value=c0.key||''; $('#sbAuto').checked=!!c0.auto;
+$('#aiProvider').value = PROVIDERS[c0.aiProvider] ? c0.aiProvider : 'groq';
+$('#aiKey').value=c0.aiKey||'';
+$('#aiModel').value=c0.aiModel||PROVIDERS[$('#aiProvider').value].model;
+$('#aiBase').value=c0.aiBase||'';
+updateSyncStatus();
+updateAiStatus();
+renderAll();
+chatBubble('ai', "Hi! I'm your efficiency assistant. Ask me things like:\n• \"What should I focus on today?\"\n• \"Add task: send invoices, high priority, due Friday\"\n• \"Mark the demo prep as done\"\n• \"How's my sales efficiency this week?\"");
+</script>
+</body>
+</html>
